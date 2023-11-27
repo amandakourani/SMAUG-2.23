@@ -1,0 +1,338 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Mono.Data.Sqlite;
+using System.IO;
+using System.Data;
+
+public class DatabaseBuilder : MonoBehaviour
+{
+    public string DatabaseName;
+    protected string databasePath;
+    protected SqliteConnection Connection => new SqliteConnection($"Data Source = {this.databasePath};");
+
+    private void Awake()
+    {
+        if (string.IsNullOrEmpty(this.DatabaseName))
+        {
+            Debug.LogError("DatabaseName está vazio!");
+            return;
+        }
+
+        CreateDatabaseFileIfNotExists();
+       
+
+        CreateTableWeapon();
+        CreateTableCharacter();
+        InsertDataWeapon("Swordx", 10, 30.12);
+        InsertDataWeapon("Espada", 12, 28.70);
+        InsertDataCharacter("Kaz", 2, 1, 3, 10, 1);
+        InsertDataCharacter("Gorg", 3, 3, 4, 11, 2);
+        //Debug.Log(GetCharacter(1));
+        DisplayWeapon();
+        DisplayWeaponCharacter();
+        // DisplayWeaponCharacterLEFTJOIN();
+        DisplayWeaponPK(1);
+        //Debug.Log("DELETE CHARACTER:" + DeleteCharacterPK(1));
+        //Debug.Log(UpdateDataCharacter(1, "Kaz", 4, 5, 6, 11, 1));
+
+
+
+
+
+
+
+    }
+
+    private void CreateDatabaseFileIfNotExists()
+    {
+        this.databasePath = Path.Combine(Application.persistentDataPath, this.DatabaseName);
+        if (!File.Exists(this.databasePath))
+        {
+            SqliteConnection.CreateFile(this.databasePath);
+            Debug.Log($"Database path: {this.databasePath}");
+        }
+    }
+
+
+
+    protected void CreateTableWeapon()
+    {
+        using (var conn = Connection)
+        {
+            var commandText = $"CREATE TABLE IF NOT EXISTS Weapon"
+                              + $"("
+                              + $" Id INTEGER PRIMARY KEY,"
+                              + $" Nome TEXT NOT NULL,"
+                              + $" Ataque INTEGER NOT NULL,"
+                              + $" Preco REAL NOT NULL"
+                              + $");";
+            conn.Open();
+            using (var command = conn.CreateCommand())
+            {
+                command.CommandText = commandText;
+                command.ExecuteNonQuery();
+                Debug.LogError("Commando de Encerramento!");
+            }
+        }
+    }
+
+
+
+
+
+
+    protected void CreateTableCharacter()
+    {
+        using (var conn = Connection)
+        {
+
+            var commandText = $"CREATE TABLE IF NOT EXISTS Character"
+                              + $"("
+                              + $" Id INTEGER PRIMARY KEY,"
+                              + $" Nome TEXT NOT NULL,"
+                              + $" Ataque INTEGER NOT NULL,"
+                              + $" Defesa INTEGER NOT NULL,"
+                              + $" Agilidade INTEGER NOT NULL,"
+                              + $" Health INTEGER NOT NULL,"
+                              + $" WeaponId INTEGER NOT NULL,"
+                              + $" FOREIGN KEY (WeaponId) REFERENCES Weapon(Id) ON UPDATE CASCADE ON DELETE RESTRICT"
+                              + $");";
+            //using (var connection = Connection)
+
+            conn.Open();
+            using (var command = conn.CreateCommand())
+            {
+                command.CommandText = commandText;
+                command.ExecuteNonQuery();
+                Debug.LogError("Encerra Character");
+            }
+        }
+
+    }
+
+    protected void InsertDataWeapon(string nome, int ataque, double preco)
+    {
+        var commandText = "INSERT INTO Weapon (Nome, Ataque, Preco) VALUES(@nome,@ataque,@preco);";
+
+        using (var connection = Connection)
+        {
+            connection.Open();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = commandText;
+                command.Parameters.AddWithValue("@nome", nome);
+                command.Parameters.AddWithValue("@ataque", ataque);
+                command.Parameters.AddWithValue("@preco", preco);
+                var result = command.ExecuteNonQuery();
+                Debug.Log($"INSERT WEAPON: {result.ToString()}");
+            }
+        }
+    }
+
+
+    protected void InsertDataCharacter(string nome, int ataque, int defesa, int agilidade, int health, int weaponId)
+    {
+        var commandText = "INSERT INTO Character (Nome, Ataque, Defesa, Agilidade, Health, WeaponId) VALUES(@nome,@ataque, @defesa, @agilidade, @health, @weaponId);";
+
+        using (var connection = Connection)
+        {
+            connection.Open();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = commandText;
+                command.Parameters.AddWithValue("@nome", nome);
+                command.Parameters.AddWithValue("@ataque", ataque);
+                command.Parameters.AddWithValue("@defesa", defesa);
+                command.Parameters.AddWithValue("@agilidade", agilidade);
+                command.Parameters.AddWithValue("@health", health);
+                command.Parameters.AddWithValue("@weaponId", weaponId);
+                var result = command.ExecuteNonQuery();
+                Debug.Log($"INSERT CHARACTER: {result.ToString()}");
+            }
+        }
+    }
+
+  
+
+
+    // Geral
+    public void DisplayWeapon()
+    {
+        using (var connection = Connection)
+        {
+            connection.Open();
+            //apontar para um objeto chamado command para permitir db control
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "Select nome,ataque,preco from weapon;";
+
+                using (IDataReader reader = command.ExecuteReader())
+
+                {
+                    while (reader.Read())
+                    {
+                        Debug.Log("nome:" + reader["nome"] + "\tataque:" + reader["ataque"] + "tpreco:" + reader["preco"]);
+
+
+                    }
+                    reader.Close();
+                }
+                connection.Close();
+            }
+        }
+    }
+
+    // pesquisa de uma linha com chave primária
+    public void DisplayWeaponPK(int id)
+    {
+        using (var connection = Connection)
+        {
+            //var result = "None";
+            connection.Open();
+            //apontar para um objeto chamado command para permitir db control
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "Select id, nome,ataque,preco from weapon where Id=id;";
+
+                using (IDataReader reader = command.ExecuteReader())
+
+                {
+
+                    Debug.Log("\tid:" + reader["id"] + "nome:" + reader["nome"] + "\tataque:" + reader["ataque"] + "\tpreco:" + reader["preco"]);
+
+
+                }
+                //reader.Close();
+
+                connection.Close();
+            }
+        }
+    }
+
+
+    //Eliminar um character (personagem)
+
+    // pesquisa de uma linha com chave primária
+    protected int DeleteCharacterPK(int id)
+    {
+        using (var connection = Connection)
+        {
+            var commandText = "DELETE FROM character WHERE Id = @id;";
+            connection.Open();
+
+            using (var command = connection.CreateCommand())
+            {
+
+
+                {
+                    command.CommandText = commandText;
+                    command.Parameters.AddWithValue("@id", id);
+                    return command.ExecuteNonQuery();
+
+
+                }
+
+
+            }
+        }
+    }
+
+    //atualizar algum valor do character (personagem)
+    protected int UpdateDataCharacter(int id, string nome, int ataque, int defesa, int agilidade, int health, int weaponId)
+    {
+        var commandText = "UPDATE Character  SET " +
+            "Nome = @nome," +
+            "Ataque = @ataque," +
+            "Defesa = @defesa," +
+            "Agilidade = agilidade," +
+            "Health = @health," +
+            "WeaponId = weaponId " +
+            "WHERE Id=@id;";
+
+        using (var connection = Connection)
+        {
+            connection.Open();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = commandText;
+                command.Parameters.AddWithValue("@id", id);
+                command.Parameters.AddWithValue("@nome", nome);
+                command.Parameters.AddWithValue("@ataque", ataque);
+                command.Parameters.AddWithValue("@defesa", defesa);
+                command.Parameters.AddWithValue("@agilidade", agilidade);
+                command.Parameters.AddWithValue("@health", health);
+                command.Parameters.AddWithValue("@weaponId", weaponId);
+                return command.ExecuteNonQuery();
+                //Debug.Log("UPDATE CHARACTER");
+            }
+        }
+    }
+
+
+    // inner join
+    public void DisplayWeaponCharacter()
+    {
+        using (var connection = Connection)
+        {
+            connection.Open();
+            //apontar para um objeto chamado command para permitir db control
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "Select weapon.nome,agilidade, weapon.ataque,preco,character.health from weapon inner join character on weapon.Id=character.weaponId;";
+
+                using (IDataReader reader = command.ExecuteReader())
+
+                {
+                    while (reader.Read())
+                    {
+                        Debug.Log("nome:" + reader["nome"] + "\tagilidade:" + reader["agilidade"] + "\tataque:" + reader["ataque"] + "\tpreco:" + reader["preco"] + "\thealth" + reader["health"]);
+
+
+                    }
+                    reader.Close();
+                }
+                connection.Close();
+            }
+        }
+    }
+
+    
+    public void DisplayWeaponCharacterLEFTJOIN()
+    {
+        using (var connection = Connection)
+        {
+            connection.Open();
+            //apontar para um objeto chamado command para permitir db control
+            using (var command = connection.CreateCommand())
+            {
+                //command.CommandText = "Select weapon.nome,agilidade,weapon.ataque,preco from weapon LEFT JOIN character on weapon.Id=character.weaponId;";
+                command.CommandText = "Select weapon.nome,agilidade, weapon.ataque,preco,character.health from weapon LEFT JOIN character on weapon.Id=character.weaponId;";
+                using (IDataReader reader = command.ExecuteReader())
+
+                {
+                    while (reader.Read())
+                    {
+                        //Debug.Log("nome:" + reader["nome"] + "\tagilidade:" + reader["agilidade"] + "\tataque:" + reader["ataque"] + "\tpreco:" + reader["preco"]);
+                        Debug.Log("nome:" + reader["nome"] + "\tagilidade:" + reader["agilidade"] + "\tataque:" + reader["ataque"] + "\tpreco:" + reader["preco"] + "\thealth" + reader["health"]);
+
+                    }
+                    reader.Close();
+                }
+                connection.Close();
+            }
+        }
+    }
+
+}
+
+
+
+--ESTE EXEMPLO, AINDA NÃO ATENDE NOSSOS OBJETIVOS. PORQUÊ?
+1) AS INSERÇÕES, ATUALIZAÇÕES, DELEÇÕES ESTÃO ESCRITAS NO CÓDIGO. ISSO INVIABILIZA UMA CONEXÃO PERMANENTE ENTRE O BANCO E O JOGO.
+2) QUEREMOS POSSIBILITAR INSERÇÕES, ELIMINAÇÕES E ALTERAÇÕES ATRAVÉS DO PRÓPRIO BANCO OU DE UM APLICATIVO (WEB OU NÃO)
+3) A TECNOLOGIA DISPONIVEL PARA ATENDER NOSSOS OBJETIVOS, QUE SERIA POR EXEMPLO MUDAR A FORÇA, VELOCIDADE, ETC DE UM PERSONAGEM, É A 'DAO' - Data Access Object
+4) ENTÃO USAREMOS ESTE EXEMPLO APENAS PARA APRESENTAR DADOS DE SELEÇÕES NO CONSOLE DO JOGO.
+5) O EXEMPLO COMPLETO ESTÁ REPRESENTADO NO PIPELINE_PROJETO_UNITY_SQLITE.PDF, ARMAZENADO NO MESMO LOCAL DESTE ARQUIVO.
+6) NESTE LOCAL, TAMBÉM CONSTA O ROTEIRO PARA EXECUTAR O EXEMPLO COM 'DAO'
+
